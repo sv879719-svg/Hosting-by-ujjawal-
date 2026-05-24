@@ -1,14 +1,14 @@
 import { motion } from "motion/react";
 import { ArrowRight, Server, ShieldCheck, Zap } from "lucide-react";
+import { Link } from "react-router-dom";
 import PricingPlans from "../components/PricingPlans";
 import { Plan } from "../types";
 
 interface HomePageProps {
-  onGetStarted: () => void;
   onStatusChange: (s: "pending", p: Plan) => void;
 }
 
-export default function HomePage({ onGetStarted, onStatusChange }: HomePageProps) {
+export default function HomePage({ onStatusChange }: HomePageProps) {
   return (
     <div className="min-h-screen bg-slate-950 pt-10">
       {/* Hero */}
@@ -25,15 +25,15 @@ export default function HomePage({ onGetStarted, onStatusChange }: HomePageProps
             Deploy your apps in seconds with our high-performance, containerized infrastructure. Secure, scalable, and powered by neon-fast technology.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <button
-              onClick={onGetStarted}
+            <Link
+              to="/dashboard"
               className="px-8 py-4 rounded-full bg-indigo-600 text-white font-semibold hover:bg-indigo-500 transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)]"
             >
               Get Started Free
-            </button>
-            <button className="px-8 py-4 rounded-full bg-slate-800 text-slate-200 font-semibold hover:bg-slate-700 transition-all border border-slate-700">
+            </Link>
+            <a href="#plans" className="px-8 py-4 rounded-full bg-slate-800 text-slate-200 font-semibold hover:bg-slate-700 transition-all border border-slate-700">
               View Plans
-            </button>
+            </a>
           </div>
         </motion.div>
       </section>
@@ -59,7 +59,9 @@ export default function HomePage({ onGetStarted, onStatusChange }: HomePageProps
         ))}
       </section>
       
-      <PricingPlans onStatusChange={onStatusChange} />
+      <div id="plans">
+        <PricingPlans onStatusChange={onStatusChange} />
+      </div>
     </div>
   );
 }
