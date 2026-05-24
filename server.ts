@@ -16,16 +16,17 @@ async function startServer() {
 
 // Real Deployment API
   app.post("/api/deploy", upload.single("appFile"), (req, res) => {
-    if (!req.file) {
+    const file = (req as any).file;
+    if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
     const appType = req.body.appType; // 'python', 'node', etc.
     const botName = req.body.name || "Unnamed Bot";
     const password = req.body.password || "";
-    const filePath = path.join(process.cwd(), req.file.path);
+    const filePath = path.join(process.cwd(), file.path);
 
-    console.log(`Physically executing: ${req.file.originalname} as ${appType} named ${botName}`);
+    console.log(`Physically executing: ${file.originalname} as ${appType} named ${botName}`);
 
     let processRunner: any;
 

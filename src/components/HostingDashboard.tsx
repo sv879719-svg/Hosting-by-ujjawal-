@@ -8,7 +8,8 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
   const [panelUnlocked, setPanelUnlocked] = useState(false);
   const [viewMode, setViewMode] = useState<"dashboard" | "bot_detail">("dashboard");
   const [selectedBotPid, setSelectedBotPid] = useState<number | null>(null);
-  const [passwordForBot, setPasswordForBot] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [accessPassword, setAccessPassword] = useState("");
   const [runningBots, setRunningBots] = useState<{ pid: number; name: string }[]>([]);
 
   const [isDeploying, setIsDeploying] = useState(false);
@@ -43,7 +44,7 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
 
   const verifyPassword = async (pid: number) => {
       try {
-          await axios.post("/api/verify-password", { pid, password: passwordForBot });
+          await axios.post("/api/verify-password", { pid, password: accessPassword });
           setSelectedBotPid(pid);
           setViewMode("bot_detail");
       } catch (e) {
@@ -62,7 +63,7 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
   };
 
   const handleStart = async () => {
-    if (!userPassword) {
+    if (!createPassword) {
       alert("Please set a password for this server.");
       return;
     }
@@ -75,7 +76,7 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
     formData.append("appFile", file);
     formData.append("appType", appType);
     formData.append("name", botName);
-    formData.append("password", userPassword);
+    formData.append("password", createPassword);
 
     try {
         await axios.post("/api/deploy", formData);
@@ -111,7 +112,7 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
                   <div key={bot.pid} className="p-4 bg-slate-950 rounded-xl flex items-center justify-between border border-slate-800">
                       <span className="text-white font-medium">{bot.name} (PID: {bot.pid})</span>
                       <div className="flex gap-2">
-                        <input type="password" placeholder="Password" onChange={(e) => setPasswordForBot(e.target.value)} className="bg-slate-900 border border-slate-700 p-2 rounded text-white" />
+                        <input type="password" placeholder="Password" onChange={(e) => setAccessPassword(e.target.value)} className="bg-slate-900 border border-slate-700 p-2 rounded text-white" />
                         <button onClick={() => verifyPassword(bot.pid)} className="bg-indigo-600 px-4 py-2 rounded-lg text-white">Access</button>
                       </div>
                   </div>
@@ -144,8 +145,8 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
           />
           <input
             type="password"
-            value={passwordForBot}
-            onChange={(e) => setPasswordForBot(e.target.value)}
+            value={createPassword}
+            onChange={(e) => setCreatePassword(e.target.value)}
             className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-4"
             placeholder="Password for this bot"
           />
