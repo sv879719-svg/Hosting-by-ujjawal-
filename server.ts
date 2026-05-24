@@ -11,7 +11,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  const activeProcesses = new Map<number, any>();
+  const activeProcesses = new Map<number, { process: any, name: string, password: string }>();
+  const processLogs = new Map<number, string[]>();
 
 // Real Deployment API
   app.post("/api/deploy", upload.single("appFile"), (req, res) => {
@@ -20,9 +21,11 @@ async function startServer() {
     }
 
     const appType = req.body.appType; // 'python', 'node', etc.
+    const botName = req.body.name || "Unnamed Bot";
+    const password = req.body.password || "";
     const filePath = path.join(process.cwd(), req.file.path);
 
-    console.log(`Physically executing: ${req.file.originalname} as ${appType}`);
+    console.log(`Physically executing: ${req.file.originalname} as ${appType} named ${botName}`);
 
     let processRunner: any;
 
@@ -34,28 +37,61 @@ async function startServer() {
       return res.status(400).json({ error: "Unsupported app type" });
     }
     
-    activeProcesses.set(processRunner.pid!, processRunner);
+    activeProcesses.set(processRunner.pid!, { process: processRunner, name: botName, password });
+    processLogs.set(processRunner.pid!, []);
 
-    processRunner.stdout.on('data', (data: any) => console.log(`[Bot Output]: ${data}`));
-    processRunner.stderr.on('data', (data: any) => console.error(`[Bot Error]: ${data}`));
+    processRunner.stdout.on('data', (data: any) => {
+        const logs = processLogs.get(processRunner.pid!) || [];
+        logs.push(data.toString());
+        console.log(`[Bot Output]: ${data}`);
+    });
+    processRunner.stderr.on('data', (data: any) => {
+        const logs = processLogs.get(processRunner.pid!) || [];
+        logs.push(`[Bot Error]: ${data}`);
+        console.error(`[Bot Error]: ${data}`);
+    });
     
     processRunner.on('close', (code: any) => {
         console.log(`Process exited with code ${code}`);
         activeProcesses.delete(processRunner.pid!);
+        // Do not delete logs so user can see exit status
     });
 
     res.json({ message: `Deployment started. Running with PID: ${processRunner.pid}`, pid: processRunner.pid });
   });
   
+  app.post("/api/verify-password", express.json(), (req, res) => {
+      const { pid, password } = req.body;
+      const processEntry = activeProcesses.get(pid);
+      if (processEntry) {
+          if (processEntry.password === password) {
+              return res.json({ success: true });
+          } else {
+              return res.status(401).json({ success: false, error: "Incorrect password" });
+          }
+      }
+      res.status(404).json({ error: "Process not found" });
+  });
+
   app.post("/api/stop", express.json(), (req, res) => {
       const { pid } = req.body;
-      const process = activeProcesses.get(pid);
-      if (process) {
-          process.kill();
+      const processEntry = activeProcesses.get(pid);
+      if (processEntry) {
+          processEntry.process.kill();
           activeProcesses.delete(pid);
           return res.json({ message: `Process ${pid} stopped` });
       }
       res.status(404).json({ error: "Process not found" });
+  });
+
+  app.get("/api/processes", (req, res) => {
+      res.json(Array.from(activeProcesses.entries()).map(([pid, entry]) => ({ pid, name: entry.name })));
+  });
+
+  app.get("/api/logs/:pid", (req, res) => {
+      const pid = parseInt(req.params.pid);
+      const logs = processLogs.get(pid) || [];
+      res.json(logs);
   });
 
   app.get("/api/health", (req, res) => {

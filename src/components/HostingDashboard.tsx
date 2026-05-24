@@ -4,79 +4,89 @@ import axios from "axios";
 import { Plan } from "../types";
 
 export default function HostingDashboard({ paymentStatus, selectedPlan }: { paymentStatus: "none" | "pending" | "approved", selectedPlan: Plan | null }) {
-  const [password, setPassword] = useState("");
+  const [botName, setBotName] = useState("");
   const [panelUnlocked, setPanelUnlocked] = useState(false);
+  const [viewMode, setViewMode] = useState<"dashboard" | "bot_detail">("dashboard");
+  const [selectedBotPid, setSelectedBotPid] = useState<number | null>(null);
+  const [passwordForBot, setPasswordForBot] = useState("");
+  const [runningBots, setRunningBots] = useState<{ pid: number; name: string }[]>([]);
+
   const [isDeploying, setIsDeploying] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [appType, setAppType] = useState("python");
   const [timeLeft, setTimeLeft] = useState(selectedPlan?.durationSeconds || 8 * 3600);
-  const [runningPid, setRunningPid] = useState<number | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  if (paymentStatus === "pending") {
-      return (
-        <div className="max-w-4xl mx-auto py-20 px-6 text-center">
-            <h2 className="text-3xl font-bold text-white mb-4">Payment Pending</h2>
-            <p className="text-slate-400">Your payment is being reviewed by the admin. Please wait.</p>
-        </div>
-      );
-  }
+  const logTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (panelUnlocked && timeLeft > 0) {
-        timerRef.current = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current!);
-                    handleStopBot();
-                    return 0;
-                }
-                return prev - 1;
-            });
+    const fetchBots = async () => {
+        const res = await axios.get("/api/processes");
+        setRunningBots(res.data);
+    };
+    fetchBots();
+    const interval = setInterval(fetchBots, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === "bot_detail" && selectedBotPid) {
+        logTimerRef.current = setInterval(async () => {
+            const response = await axios.get(`/api/logs/${selectedBotPid}`);
+            setLogs(response.data);
         }, 1000);
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [panelUnlocked, timeLeft]);
+    return () => {
+        if (logTimerRef.current) clearInterval(logTimerRef.current);
+    };
+  }, [viewMode, selectedBotPid]);
 
-  const handleStopBot = async () => {
-      if (runningPid) {
-          try {
-              await axios.post("/api/stop", { pid: runningPid });
-              setRunningPid(null);
-              setPanelUnlocked(false);
-              alert("Bot stopped successfully (Uptime limit reached).");
-          } catch(e) {
-              alert("Error stopping bot");
-          }
+  const verifyPassword = async (pid: number) => {
+      try {
+          await axios.post("/api/verify-password", { pid, password: passwordForBot });
+          setSelectedBotPid(pid);
+          setViewMode("bot_detail");
+      } catch (e) {
+          alert("Incorrect password");
       }
   };
 
+  const handleStopBot = async (pid: number) => {
+          try {
+              await axios.post("/api/stop", { pid });
+              setViewMode("dashboard");
+              setSelectedBotPid(null);
+          } catch(e) {
+              alert("Error stopping bot");
+          }
+  };
+
   const handleStart = async () => {
-    if (!password || password !== "nebula123") {
-      alert("Please enter correct panel password to start.");
+    if (!userPassword) {
+      alert("Please set a password for this server.");
       return;
     }
     
     if (!file) return;
     
-    setPanelUnlocked(true);
     setIsDeploying(true);
 
     const formData = new FormData();
     formData.append("appFile", file);
     formData.append("appType", appType);
+    formData.append("name", botName);
+    formData.append("password", userPassword);
 
     try {
-        const response = await axios.post("/api/deploy", formData);
-        setRunningPid(response.data.pid);
-        alert("Deployment initialized successfully on your infrastructure!");
+        await axios.post("/api/deploy", formData);
+        alert("Deployment initialized!");
     } catch (e) {
         alert("Deployment failed.");
-        setPanelUnlocked(false);
     } finally {
         setIsDeploying(false);
     }
   };
+
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -86,15 +96,32 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-10 px-6">
-      <h2 className="text-3xl font-bold text-white mb-8">Deploy Infrastructure</h2>
+    <div className="max-w-6xl mx-auto py-10 px-6">
+      <h2 className="text-3xl font-bold text-white mb-8">
+        {viewMode === "dashboard" ? "RS Cloud Hosting - Dashboard" : `Bot Detail: ${runningBots.find(b => b.pid === selectedBotPid)?.name || "Unknown"}`}
+      </h2>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Upload & Config */}
+      {viewMode === "dashboard" ? (
+      <div className="grid md:grid-cols-3 gap-8">
+        {/* Runnig Bots */}
+        <div className="md:col-span-2 p-8 rounded-3xl bg-slate-900 border border-slate-800">
+          <h3 className="text-xl font-semibold text-white mb-6">Running Bots</h3>
+          <div className="space-y-4">
+              {runningBots.map(bot => (
+                  <div key={bot.pid} className="p-4 bg-slate-950 rounded-xl flex items-center justify-between border border-slate-800">
+                      <span className="text-white font-medium">{bot.name} (PID: {bot.pid})</span>
+                      <div className="flex gap-2">
+                        <input type="password" placeholder="Password" onChange={(e) => setPasswordForBot(e.target.value)} className="bg-slate-900 border border-slate-700 p-2 rounded text-white" />
+                        <button onClick={() => verifyPassword(bot.pid)} className="bg-indigo-600 px-4 py-2 rounded-lg text-white">Access</button>
+                      </div>
+                  </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Deploy New Bot */}
         <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800">
-          <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-            <Upload className="w-5 h-5 text-indigo-400" /> Upload Application
-          </h3>
+          <h3 className="text-xl font-semibold text-white mb-6">Deploy New Bot</h3>
           <input
             type="file"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
@@ -107,41 +134,41 @@ export default function HostingDashboard({ paymentStatus, selectedPlan }: { paym
           >
             <option value="python">Python Bot</option>
             <option value="node">Node.js App</option>
-            <option value="telegram">Telegram Bot</option>
-            <option value="static">Static Web</option>
           </select>
           <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            type="text"
+            value={botName}
+            onChange={(e) => setBotName(e.target.value)}
             className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-4"
-            placeholder="Panel Password"
+            placeholder="Bot Display Name"
+          />
+          <input
+            type="password"
+            value={passwordForBot}
+            onChange={(e) => setPasswordForBot(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-4"
+            placeholder="Password for this bot"
           />
           <button
             onClick={handleStart}
-            disabled={!file || isDeploying || panelUnlocked}
+            disabled={!file || isDeploying}
             className="w-full py-3 rounded-xl bg-purple-600 text-white font-semibold flex items-center justify-center gap-2 hover:bg-purple-500 disabled:opacity-50"
           >
-            <Play className="w-4 h-4" /> {isDeploying ? "Deploying..." : panelUnlocked ? "Running" : "Start Deployment"}
+            <Play className="w-4 h-4" /> {isDeploying ? "Deploying..." : "Start Deployment"}
           </button>
         </div>
-
-        {/* Status */}
-        <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800">
-          <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-            <Server className="w-5 h-5 text-emerald-400" /> {panelUnlocked ? "Active Deployment" : "Idle Status"}
-          </h3>
-          <div className="flex items-center gap-4 text-sm text-slate-400 mb-2">
-            <Clock className="w-4 h-4 text-indigo-400" /> 8h uptime limit
-          </div>
-          <div className="text-center py-6 border border-slate-800 rounded-2xl bg-slate-950">
-            <div className="text-4xl font-mono text-emerald-500">
-                {panelUnlocked ? formatTime(timeLeft) : "--:--:--"}
-            </div>
-            <div className="text-xs text-slate-500 mt-2">Time remaining ({selectedPlan?.name || "Free"} Plan)</div>
-          </div>
-        </div>
       </div>
+      ) : (
+          <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800">
+              <div className="flex justify-between items-center mb-6">
+                <button onClick={() => setViewMode("dashboard")} className="text-slate-400 hover:text-white">← Back to Dashboard</button>
+                <button onClick={() => selectedBotPid && handleStopBot(selectedBotPid)} className="bg-red-600 text-white px-4 py-2 rounded-lg">Stop Bot</button>
+              </div>
+              <div className="bg-slate-950 p-6 rounded-2xl h-96 overflow-y-auto font-mono text-sm text-slate-300">
+                  {logs.map((log, i) => <div key={i}>{log}</div>)}
+              </div>
+          </div>
+      )}
     </div>
   );
 }

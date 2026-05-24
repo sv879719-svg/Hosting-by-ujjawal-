@@ -45,7 +45,7 @@ export default function PricingPlans({ onStatusChange }: { onStatusChange: (s: "
                 <button onClick={() => setShowModal(false)}><X className="text-slate-400"/></button>
             </div>
             <div className="bg-white p-4 rounded-xl mb-6">
-                 <img src="/qr_code.png" alt="Payment QR" className="mx-auto w-48 h-48 border-2 border-slate-300" onError={(e) => (e.currentTarget.src = "https://placehold.co/200x200?text=Upload+QR+Here")} />
+                 <img src="/qr_code.png" alt="Payment QR" className="mx-auto w-48 h-48 border-2 border-slate-300" onError={(e) => (e.currentTarget.src = "https://placehold.co/200x200?text=Scan+QR")} />
             </div>
             <p className="text-sm text-slate-400 mb-6 text-center">Scan this QR. After payment, click "Confirm" to send to Admin for approval.</p>
             <button 

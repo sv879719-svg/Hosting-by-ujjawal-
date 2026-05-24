@@ -1,9 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lock, X, Check, AlertTriangle } from "lucide-react";
+import axios from "axios";
 
 export default function AdminPanel({ onApprove }: { onApprove: () => void }) {
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(false);
+  const [processes, setProcesses] = useState<{ pid: number; name: string }[]>([]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (unlocked) {
+        const fetchProcesses = () => axios.get("/api/processes").then(res => setProcesses(res.data));
+        fetchProcesses();
+        interval = setInterval(fetchProcesses, 3000); // Poll every 3 seconds
+    }
+    return () => clearInterval(interval);
+  }, [unlocked]);
 
   if (!unlocked) {
     return (
@@ -30,8 +42,10 @@ export default function AdminPanel({ onApprove }: { onApprove: () => void }) {
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-6">
-        <h2 className="text-3xl font-bold text-white mb-8">Admin Panel - Pending Approvals</h2>
-        <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
+        <h2 className="text-3xl font-bold text-white mb-8">Admin Panel</h2>
+        
+        <h3 className="text-xl text-white mb-4">Pending Approvals</h3>
+        <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 mb-8">
             <div className="flex justify-between items-center bg-slate-800 p-4 rounded-xl text-slate-300">
                 <span>User: sv879719@gmail.com</span>
                 <span>Plan: Pro</span>
@@ -39,6 +53,16 @@ export default function AdminPanel({ onApprove }: { onApprove: () => void }) {
                     <Check /> Approve
                 </button>
             </div>
+        </div>
+
+        <h3 className="text-xl text-white mb-4">Running Processes</h3>
+        <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
+            {processes.map(p => (
+                <div key={p.pid} className="text-slate-300 p-2 border-b border-slate-800 flex justify-between">
+                    <span>{p.name}</span>
+                    <span className="text-slate-500">PID: {p.pid}</span>
+                </div>
+            ))}
         </div>
     </div>
   );
