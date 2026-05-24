@@ -1,0 +1,6 @@
+{
+  "name": "Nebula Cloud Hosting",
+  "description": "Premium cloud hosting platform featuring Telegram, Python, Node.js, and VPS infrastructure with a modern neon-inspired dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
